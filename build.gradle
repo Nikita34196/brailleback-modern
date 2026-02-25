@@ -1,12 +1,5 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // Это версия плагина, которая превращает код в Android-приложение
-        classpath 'com.android.tools.build:gradle:8.2.2'
-    }
+plugins {
+    id 'com.android.application' version '8.2.2' apply false
 }
 
 allprojects {
