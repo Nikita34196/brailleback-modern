@@ -21,21 +21,23 @@ public class BrailleBackService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        connectToElf20();
+        connectToDevice();
     }
 
-    private void connectToElf20() {
+    private void connectToDevice() {
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null) return;
 
-        // Ищем ELF 20 среди сопряженных устройств
+        // Ищем устройство по именам ELF или Human
         for (BluetoothDevice device : adapter.getBondedDevices()) {
-            if (device.getName() != null && device.getName().contains("ELF")) {
+            String name = device.getName();
+            if (name != null && (name.contains("ELF") || name.contains("Human"))) {
+                Log.i(TAG, "Попытка подключения к: " + name);
                 try {
                     socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
                     socket.connect();
                     outputStream = socket.getOutputStream();
-                    Log.i(TAG, "Успешно подключено к ELF 20!");
+                    Log.i(TAG, "Успешно подключено к дисплею!");
                 } catch (Exception e) {
                     Log.e(TAG, "Ошибка подключения: " + e.getMessage());
                 }
@@ -49,11 +51,11 @@ public class BrailleBackService extends AccessibilityService {
         if (event.getText() != null && outputStream != null) {
             String text = event.getText().toString();
             try {
-                // Отправляем отформатированный текст на дисплей
+                // Отправляем отформатированный текст через драйвер
                 outputStream.write(driver.formatText(text));
                 outputStream.flush();
             } catch (Exception e) {
-                Log.e(TAG, "Ошибка отправки данных");
+                Log.e(TAG, "Ошибка отправки данных на дисплей");
             }
         }
     }
