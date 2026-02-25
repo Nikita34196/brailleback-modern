@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'org.google.android.marvin.brailleback'
-    compileSdk 34 // Попробуем временно 34 для лучшей стабильности с плагином 8.2.2
+    compileSdk 34
 
     defaultConfig {
         applicationId "org.google.android.marvin.brailleback"
