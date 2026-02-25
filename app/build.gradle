@@ -19,5 +19,8 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.7.0'
+    // Оставляем только одну базовую библиотеку
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    
+    // Если будут нужны дополнительные функции, добавим позже по одной
 }
