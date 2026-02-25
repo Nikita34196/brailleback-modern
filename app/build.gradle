@@ -1,13 +1,15 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
     namespace 'org.google.android.marvin.brailleback'
-    compileSdk 35
+    compileSdk 34 // Попробуем временно 34 для лучшей стабильности с плагином 8.2.2
 
     defaultConfig {
         applicationId "org.google.android.marvin.brailleback"
         minSdk 26
-        targetSdk 35
+        targetSdk 34
         versionCode 1
         versionName "1.0-modern"
     }
@@ -19,8 +21,5 @@ android {
 }
 
 dependencies {
-    // Оставляем только одну базовую библиотеку
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    
-    // Если будут нужны дополнительные функции, добавим позже по одной
 }
