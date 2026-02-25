@@ -1,25 +1,19 @@
 plugins {
-    id 'com.android.application'
+    id 'com.android.application' version '8.2.2'
 }
 
 android {
     namespace 'org.google.android.marvin.brailleback'
-    compileSdk 35 // Поднимаем до актуального для Android 16
+    compileSdk 34
 
     defaultConfig {
         applicationId "org.google.android.marvin.brailleback"
         minSdk 26
-        targetSdk 35
+        targetSdk 34
         versionCode 1
-        versionName "1.0-original-core"
+        versionName "1.0-modern-humanware"
     }
 
-    buildTypes {
-        release {
-            minifyEnabled false
-        }
-    }
-    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -29,6 +23,4 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
-    // Библиотека для поддержки Брайля (упрощенная версия)
-    implementation 'androidx.core:core-ktx:1.12.0'
 }
