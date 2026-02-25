@@ -1,24 +1,21 @@
 package org.google.android.marvin.brailleback;
 
-import android.util.Log;
-
 public class Elf20Driver {
-    private static final String TAG = "Elf20Driver";
-    
-    // Базовая таблица перевода (пока упрощенная)
-    // ELF 20 ожидает стандартные ASCII или Dot-коды в зависимости от режима
     public byte[] formatText(String text) {
-        if (text == null) return new byte[0];
+        if (text == null) text = "";
+        // Очистка текста от лишних символов
+        text = text.replaceAll("[^\\p{L}\\p{N}\\p{P}\\p{Z}]", "");
         
-        // Ограничиваем длину текста 20 символами (размер твоего дисплея)
-        String truncated = text.length() > 20 ? text.substring(0, 20) : text;
+        byte[] buffer = new byte[20];
+        byte[] textBytes = text.getBytes();
         
-        Log.d(TAG, "Подготовка текста для ELF 20: " + truncated);
-        return truncated.getBytes(); 
-    }
-
-    // Команда для очистки дисплея
-    public byte[] getClearCommand() {
-        return new byte[]{0x1B, 0x40}; // Стандартный сброс для многих брайлевских терминалов
+        for (int i = 0; i < 20; i++) {
+            if (i < textBytes.length) {
+                buffer[i] = textBytes[i];
+            } else {
+                buffer[i] = 0x20; // Пробел
+            }
+        }
+        return buffer;
     }
 }
