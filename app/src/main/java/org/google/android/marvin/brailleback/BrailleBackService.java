@@ -11,7 +11,6 @@ import java.util.UUID;
 
 public class BrailleBackService extends AccessibilityService {
     private static final String TAG = "BrailleBackModern";
-    // Стандартный UUID для последовательного порта (SPP)
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     
     private BluetoothSocket socket;
@@ -21,26 +20,31 @@ public class BrailleBackService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        connectToDevice();
+        Log.d(TAG, "Сервис подключен");
+        try {
+            connectToDevice();
+        } catch (SecurityException e) {
+            Log.e(TAG, "Нет разрешений на Bluetooth!");
+        }
     }
 
-    private void connectToDevice() {
+    private void connectToDevice() throws SecurityException {
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-        if (adapter == null) return;
+        if (adapter == null || !adapter.isEnabled()) return;
 
-        // Ищем устройство по именам ELF или Human
         for (BluetoothDevice device : adapter.getBondedDevices()) {
             String name = device.getName();
             if (name != null && (name.contains("ELF") || name.contains("Human"))) {
-                Log.i(TAG, "Попытка подключения к: " + name);
-                try {
-                    socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
-                    socket.connect();
-                    outputStream = socket.getOutputStream();
-                    Log.i(TAG, "Успешно подключено к дисплею!");
-                } catch (Exception e) {
-                    Log.e(TAG, "Ошибка подключения: " + e.getMessage());
-                }
+                new Thread(() -> {
+                    try {
+                        socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
+                        socket.connect();
+                        outputStream = socket.getOutputStream();
+                        Log.i(TAG, "Связь с HumanWare установлена!");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Ошибка соединения: " + e.getMessage());
+                    }
+                }).start();
                 break;
             }
         }
@@ -51,17 +55,14 @@ public class BrailleBackService extends AccessibilityService {
         if (event.getText() != null && outputStream != null) {
             String text = event.getText().toString();
             try {
-                // Отправляем отформатированный текст через драйвер
                 outputStream.write(driver.formatText(text));
                 outputStream.flush();
             } catch (Exception e) {
-                Log.e(TAG, "Ошибка отправки данных на дисплей");
+                Log.e(TAG, "Ошибка передачи");
             }
         }
     }
 
     @Override
-    public void onInterrupt() {
-        try { if (socket != null) socket.close(); } catch (Exception e) {}
-    }
+    public void onInterrupt() {}
 }
