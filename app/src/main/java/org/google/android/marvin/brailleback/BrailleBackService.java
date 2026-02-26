@@ -2,76 +2,76 @@ package org.google.android.marvin.brailleback;
 
 import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
+import android.hardware.usb.*;
+import android.content.Context;
 import android.util.Log;
 import java.io.OutputStream;
-import java.util.UUID;
-import java.util.Set;
+import java.util.HashMap;
 
 public class BrailleBackService extends AccessibilityService {
     private static final String TAG = "BrailleBackModern";
-    private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-    
-    private BluetoothSocket socket;
     private OutputStream outputStream;
+    private UsbDeviceConnection usbConnection;
+    private UsbInterface usbInterface;
+    private UsbEndpoint usbEndpointOut;
     private Elf20Driver driver = new Elf20Driver();
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        Log.d(TAG, "Сервис запущен");
-        connectToDevice();
+        if (!tryConnectUsb()) {
+            // Если USB не найден, здесь можно вызвать старый метод Bluetooth
+            Log.d(TAG, "USB не найден, ожидание подключения...");
+        }
     }
 
-    private synchronized void connectToDevice() {
-        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-        if (adapter == null || !adapter.isEnabled()) return;
-
-        try {
-            Set<BluetoothDevice> pairedDevices = adapter.getBondedDevices();
-            for (BluetoothDevice device : pairedDevices) {
-                String name = device.getName();
-                if (name != null && (name.contains("Human") || name.contains("ELF"))) {
-                    new Thread(() -> {
-                        try {
-                            socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
-                            socket.connect();
-                            outputStream = socket.getOutputStream();
-                            
-                            // Инициализация HumanWare: ESC + 'T'
-                            outputStream.write(new byte[]{0x1B, 0x54}); 
-                            outputStream.write(driver.formatText("CONNECTED"));
-                            outputStream.flush();
-                            Log.i(TAG, "HumanWare подключен!");
-                        } catch (Exception e) {
-                            Log.e(TAG, "Ошибка: " + e.getMessage());
-                        }
-                    }).start();
-                    break;
+    private boolean tryConnectUsb() {
+        UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+        HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
+        
+        for (UsbDevice device : deviceList.values()) {
+            // Простая проверка: берем первое попавшееся устройство (для теста)
+            usbInterface = device.getInterface(0);
+            for (int i = 0; i < usbInterface.getEndpointCount(); i++) {
+                UsbEndpoint ep = usbInterface.getEndpoint(i);
+                if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK && 
+                    ep.getDirection() == UsbConstants.USB_DIR_OUT) {
+                    usbEndpointOut = ep;
                 }
             }
-        } catch (SecurityException e) {
-            Log.e(TAG, "Ошибка разрешений Bluetooth");
+
+            if (usbEndpointOut != null) {
+                usbConnection = manager.openDevice(device);
+                if (usbConnection != null && usbConnection.claimInterface(usbInterface, true)) {
+                    Log.i(TAG, "USB Дисплей подключен!");
+                    sendUsbData("READY USB");
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void sendUsbData(String text) {
+        if (usbConnection != null && usbEndpointOut != null) {
+            byte[] data = driver.formatText(text);
+            usbConnection.bulkTransfer(usbEndpointOut, data, data.length, 1000);
         }
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (outputStream == null) return;
-        
         if (event.getText() != null && !event.getText().isEmpty()) {
-            try {
-                String text = event.getText().get(0).toString();
-                outputStream.write(driver.formatText(text));
-                outputStream.flush();
-            } catch (Exception e) {
-                outputStream = null;
-            }
+            String text = event.getText().get(0).toString();
+            sendUsbData(text);
         }
     }
 
     @Override
-    public void onInterrupt() {}
+    public void onInterrupt() {
+        if (usbConnection != null) {
+            usbConnection.releaseInterface(usbInterface);
+            usbConnection.close();
+        }
+    }
 }
