@@ -16,7 +16,7 @@ public class BrailleBackService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        Log.i(TAG, "Служба запущена. Поиск разрешенного USB...");
+        Log.i(TAG, "Сервис активен. Инициализация USB...");
         tryConnectUsb();
     }
 
@@ -26,12 +26,11 @@ public class BrailleBackService extends AccessibilityService {
         
         for (UsbDevice device : devices.values()) {
             if (manager.hasPermission(device)) {
-                // Перебираем все интерфейсы устройства
                 for (int i = 0; i < device.getInterfaceCount(); i++) {
                     UsbInterface intf = device.getInterface(i);
-                    // Ищем подходящий эндпоинт для вывода данных
                     for (int j = 0; j < intf.getEndpointCount(); j++) {
                         UsbEndpoint ep = intf.getEndpoint(j);
+                        // Ищем канал для отправки данных (Bulk Out)
                         if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK && 
                             ep.getDirection() == UsbConstants.USB_DIR_OUT) {
                             
@@ -39,11 +38,15 @@ public class BrailleBackService extends AccessibilityService {
                             if (usbConn != null && usbConn.claimInterface(intf, true)) {
                                 usbInterface = intf;
                                 usbOut = ep;
-                                Log.i(TAG, "USB ПОДКЛЮЧЕН: Эндпоинт " + j);
+                                Log.i(TAG, "USB Подключен к эндпоинту: " + j);
                                 
-                                // Инициализация HumanWare (ESC T ESC I)
-                                byte[] init = new byte[]{0x1B, 0x54, 0x1B, 0x49};
-                                usbConn.bulkTransfer(usbOut, init, init.length, 500);
+                                // 1. Шлем последовательность активации (Terminal Mode)
+                                byte[] activation = driver.getActivationSequence();
+                                usbConn.bulkTransfer(usbOut, activation, activation.length, 500);
+                                
+                                // 2. Шлем приветствие для проверки
+                                byte[] welcome = driver.formatText("READY NIKITA");
+                                usbConn.bulkTransfer(usbOut, welcome, welcome.length, 500);
                                 return;
                             }
                         }
@@ -55,23 +58,40 @@ public class BrailleBackService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (usbConn != null && usbOut != null && event.getText() != null && !event.getText().isEmpty()) {
-            try {
-                String text = event.getText().get(0).toString();
-                byte[] data = driver.formatText(text);
-                int result = usbConn.bulkTransfer(usbOut, data, data.length, 500);
-                if (result < 0) Log.e(TAG, "Ошибка передачи USB");
-            } catch (Exception e) {
-                Log.e(TAG, "Сбой: " + e.getMessage());
+        if (usbConn != null && usbOut != null) {
+            CharSequence text = null;
+            if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_FOCUSED || 
+                event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                
+                if (event.getContentDescription() != null) {
+                    text = event.getContentDescription();
+                } else if (event.getText() != null && !event.getText().isEmpty()) {
+                    text = event.getText().get(0);
+                }
+            }
+
+            if (text != null) {
+                try {
+                    byte[] data = driver.formatText(text.toString());
+                    usbConn.bulkTransfer(usbOut, data, data.length, 500);
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка отправки: " + e.getMessage());
+                }
             }
         }
     }
 
     @Override
     public void onInterrupt() {
+        Log.i(TAG, "Прерывание службы");
+    }
+
+    @Override
+    public boolean onUnbind(android.content.Intent intent) {
         if (usbConn != null) {
             usbConn.releaseInterface(usbInterface);
             usbConn.close();
         }
+        return super.onUnbind(intent);
     }
 }
