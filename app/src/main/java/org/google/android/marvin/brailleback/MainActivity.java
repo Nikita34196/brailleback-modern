@@ -1,12 +1,14 @@
 package org.google.android.marvin.brailleback;
 
-import android.Manifest;
 import android.app.Activity;
-import android.content.Intent;
+import android.content.Context;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.Toast;
+import android.widget.TextView;
+import java.util.HashMap;
 
 public class MainActivity extends Activity {
     @Override
@@ -15,27 +17,25 @@ public class MainActivity extends Activity {
         
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 50, 50, 50);
-        
-        Button btn = new Button(this);
-        btn.setText("ШАГ 1: РАЗРЕШИТЬ BLUETOOTH");
-        btn.setOnClickListener(v -> {
-            requestPermissions(new String[]{
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_ADMIN
-            }, 1);
-            Toast.makeText(this, "Запрос отправлен", Toast.LENGTH_SHORT).show();
+        layout.setPadding(30, 30, 30, 30);
+
+        TextView info = new TextView(this);
+        info.setText("Статус USB: Ищу устройства...");
+        layout.addView(info);
+
+        Button btnUsb = new Button(this);
+        btnUsb.setText("ПРОВЕРИТЬ USB ПОДКЛЮЧЕНИЕ");
+        btnUsb.setOnClickListener(v -> {
+            UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+            HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
+            if (deviceList.isEmpty()) {
+                info.setText("USB: Ничего не найдено (только зарядка)");
+            } else {
+                info.setText("USB: Найдено " + deviceList.size() + " устройств(а)");
+            }
         });
-        
-        Button btnSettings = new Button(this);
-        btnSettings.setText("ШАГ 2: ОТКРЫТЬ СПЕЦ. ВОЗМОЖНОСТИ");
-        btnSettings.setOnClickListener(v -> {
-            startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
-        });
-        
-        layout.addView(btn);
-        layout.addView(btnSettings);
+
+        layout.addView(btnUsb);
         setContentView(layout);
     }
 }
