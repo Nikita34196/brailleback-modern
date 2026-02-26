@@ -1,29 +1,30 @@
 package org.google.android.marvin.brailleback;
 
 public class Elf20Driver {
-    // Команды из актуального TalkBack для EuroBraille/HumanWare
+    // Команды протокола EuroBraille / HumanWare
     private static final byte ESC = 0x1B;
-    private static final byte CMD_TERMINAL = 0x54; // 'T'
-    private static final byte CMD_INIT = 0x49;     // 'I'
+    private static final byte CMD_TERMINAL = 0x54; // 'T' - вход в режим терминала
+    private static final byte CMD_INIT_DISPLAY = 0x49; // 'I' - инициализация дисплея
+    private static final byte CMD_SET_WINDOW = 0x57; // 'W' - установка окна вывода
 
-    public byte[] getInitPacket() {
-        // Последовательность: ESC T (Терминал) затем ESC I (Инициализация)
-        return new byte[]{ESC, CMD_TERMINAL, ESC, CMD_INIT};
+    public byte[] getActivationSequence() {
+        // ESC T (режим терминала), затем ESC I (сброс), затем ESC W (окно)
+        return new byte[]{ESC, CMD_TERMINAL, ESC, CMD_INIT_DISPLAY, ESC, CMD_SET_WINDOW, 0x01, 0x14}; 
+        // 0x01 0x14 — это координаты окна для 20-клеточного дисплея
     }
 
     public byte[] formatText(String text) {
         if (text == null) text = "";
-        byte[] cells = new byte[20];
-        
-        // В современном TalkBack используется Raw-передача символов для EuroBraille
+        byte[] buffer = new byte[20];
         byte[] textBytes = text.getBytes();
+        
         for (int i = 0; i < 20; i++) {
             if (i < textBytes.length) {
-                cells[i] = textBytes[i];
+                buffer[i] = textBytes[i];
             } else {
-                cells[i] = 0x00; // В TalkBack пустая ячейка для этого драйвера — это 0x00
+                buffer[i] = 0x20; // Пробел
             }
         }
-        return cells;
+        return buffer;
     }
 }
