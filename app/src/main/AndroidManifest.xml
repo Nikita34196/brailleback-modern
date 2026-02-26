@@ -5,11 +5,16 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
+    
+    <uses-feature android:name="android.hardware.usb.host" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <application
         android:label="BrailleBack Modern"
-        android:theme="@android:style/Theme.DeviceDefault">
+        android:theme="@android:style/Theme.DeviceDefault"
+        android:allowBackup="true"
+        android:supportsRtl="true">
         
         <activity android:name=".MainActivity"
             android:exported="true">
@@ -23,12 +28,21 @@
             android:name=".BrailleBackService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true"
-            android:foregroundServiceType="connectedDevice"> <intent-filter>
+            android:foregroundServiceType="connectedDevice">
+            <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
+            
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+            <meta-data 
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" 
+                android:resource="@xml/usb_device_filter" />
         </service>
     </application>
 </manifest>
