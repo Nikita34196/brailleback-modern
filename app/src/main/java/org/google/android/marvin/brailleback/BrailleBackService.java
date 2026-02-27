@@ -2,65 +2,81 @@ package org.google.android.marvin.brailleback;
 
 import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
-import android.bluetooth.*;
+import android.hardware.usb.*;
 import android.util.Log;
-import java.io.OutputStream;
-import java.util.UUID;
+import java.util.HashMap;
 
 public class BrailleBackService extends AccessibilityService {
     private static final String TAG = "BrailleBackModern";
-    private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-    
-    private BluetoothSocket socket;
-    private OutputStream out;
+    private UsbDeviceConnection usbConn;
+    private UsbEndpoint usbOut;
+    private UsbInterface usbInterface;
     private Elf20Driver driver = new Elf20Driver();
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        Log.i(TAG, "Сервис запущен, пробую 'небезопасное' подключение...");
-        connectInsecure();
+        Log.i(TAG, "Служба запущена. Попытка захвата USB...");
+        tryConnectUsb();
     }
 
-    private void connectInsecure() {
-        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-        if (adapter == null) return;
+    private void tryConnectUsb() {
+        UsbManager manager = (UsbManager) getSystemService(USB_SERVICE);
+        HashMap<String, UsbDevice> devices = manager.getDeviceList();
+        
+        for (UsbDevice device : devices.values()) {
+            if (manager.hasPermission(device)) {
+                // Пытаемся открыть устройство
+                UsbDeviceConnection connection = manager.openDevice(device);
+                if (connection == null) {
+                    Log.e(TAG, "ОШИБКА ПОРТА: Система не дает открыть устройство.");
+                    continue;
+                }
 
-        for (BluetoothDevice device : adapter.getBondedDevices()) {
-            if (device.getName() != null && (device.getName().contains("Human") || device.getName().contains("ELF"))) {
-                new Thread(() -> {
-                    try {
-                        // Используем Insecure метод - он чаще срабатывает на Android 16
-                        socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
-                        socket.connect();
-                        out = socket.getOutputStream();
-                        
-                        // Команда 'пробуждения' дисплея
-                        out.write(new byte[]{0x1B, 0x54, 0x1B, 0x49}); 
-                        out.flush();
-                        Log.i(TAG, "ЕСТЬ КОНТАКТ! Дисплей подключен.");
-                    } catch (Exception e) {
-                        Log.e(TAG, "Сбой подключения: " + e.getMessage());
-                        socket = null;
+                // Перебираем интерфейсы, ищем тот, что с Bulk-передачей
+                for (int i = 0; i < device.getInterfaceCount(); i++) {
+                    UsbInterface intf = device.getInterface(i);
+                    
+                    // КЛЮЧЕВОЙ МОМЕНТ: claimInterface с параметром true (принудительный захват)
+                    if (connection.claimInterface(intf, true)) {
+                        for (int j = 0; j < intf.getEndpointCount(); j++) {
+                            UsbEndpoint ep = intf.getEndpoint(j);
+                            if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK && 
+                                ep.getDirection() == UsbConstants.USB_DIR_OUT) {
+                                
+                                usbConn = connection;
+                                usbInterface = intf;
+                                usbOut = ep;
+                                
+                                Log.i(TAG, "ПОРТ ЗАХВАЧЕН! Шлем сигнал активации.");
+                                // Сигнал DTR/RTS (0x03)
+                                usbConn.controlTransfer(0x21, 0x22, 0x03, 0, null, 0, 500);
+                                
+                                byte[] init = driver.getActivationSequence();
+                                usbConn.bulkTransfer(usbOut, init, init.length, 500);
+                                return;
+                            }
+                        }
                     }
-                }).start();
+                }
+                connection.close();
             }
         }
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (out != null && event.getText() != null && !event.getText().isEmpty()) {
+        if (usbConn != null && usbOut != null && event.getText() != null && !event.getText().isEmpty()) {
             try {
                 String text = event.getText().get(0).toString();
-                out.write(driver.formatText(text));
-                out.flush();
+                byte[] data = driver.formatText(text);
+                usbConn.bulkTransfer(usbOut, data, data.length, 500);
             } catch (Exception e) {
-                out = null;
-                connectInsecure(); // Пробуем переподключиться при обрыве
+                Log.e(TAG, "Ошибка передачи: " + e.getMessage());
             }
         }
     }
 
-    @Override public void onInterrupt() {}
+    @Override
+    public void onInterrupt() {}
 }
